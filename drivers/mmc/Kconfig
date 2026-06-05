@@ -6,10 +6,17 @@ menuconfig MMC
 	tristate "MMC/SD/SDIO card support"
 	depends on HAS_IOMEM
 	help
-	  This selects MultiMediaCard, Secure Digital and Secure
-	  Digital I/O support.
+	  Find out whether you have a SPI, I2C, MMC, SD or SDIO based Card
+	  plugged into your system and whether the card is useful for anything.
 
-	  If you want MMC/SD/SDIO support, you should say Y here and
+config MMC_CRC
+	bool "Enable MMC/SD/SDIO hardware CRC"
+	depends on MMC
+	default n
+	help
+	  This option enables the hardware CRC for MMC/SD/SDIO devices.
+	  Disabling this option can improve I/O speeds up to 30% by ignoring
+	  CRC checking on data transfers. MMC/SD/SDIO support, you should say Y here and
 	  also to your specific host controller driver.
 
 config MMC_SUPPORT_STLOG

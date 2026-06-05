@@ -551,4 +551,20 @@ source "drivers/misc/cardreader/Kconfig"
 source "drivers/misc/samsung/Kconfig"
 source "drivers/misc/tzdev/Kconfig"
 source "drivers/misc/tui/Kconfig"
+
+config DYNAMIC_FSYNC
+	bool "Dynamic Fsync"
+	default y
+	help
+	  An experimental fsync control driver. Sync is deferred when the
+	  screen is on for improved I/O performance, and all pending syncs
+	  are flushed when the screen turns off.
+
+config FORCE_FAST_CHARGE
+	bool "Force AC charge mode at all times"
+	default y
+	help
+	  A simple sysfs interface to force adapters that are
+	  temporary detected as USB to charge as AC instead.
+
 endmenu

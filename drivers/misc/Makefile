@@ -66,3 +66,5 @@ obj-y				+= samsung/
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/
 obj-$(CONFIG_SAMSUNG_TUI)	+= tui/
+obj-$(CONFIG_DYNAMIC_FSYNC)	+= dynamic_fsync.o
+obj-$(CONFIG_FORCE_FAST_CHARGE)	+= force_fast_charge.o

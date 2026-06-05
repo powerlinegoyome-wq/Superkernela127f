@@ -23,6 +23,7 @@
 #ifdef CONFIG_USB_HOST_NOTIFY
 #include <linux/usb_notify.h>
 #endif
+#include <linux/force_fast_charge.h>
 
 #define HEALTH_DEBOUNCE_CNT     	1
 #define ENABLE_SM5714_ENBYPASS_MODE	1
@@ -780,6 +781,16 @@ static void psy_chg_set_online(struct sm5714_charger_data *charger, int cable_ty
 			sm5714_charger_oper_get_current_status());
 
 	charger->slow_rate_chg_mode = false;
+
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	if (force_fast_charge) {
+		if (cable_type == SEC_BATTERY_CABLE_USB || cable_type == SEC_BATTERY_CABLE_UARTOFF) {
+			dev_info(charger->dev, "force_fast_charge: overriding USB cable type %d to TA\n", cable_type);
+			cable_type = SEC_BATTERY_CABLE_TA;
+		}
+	}
+#endif
+
 	charger->cable_type = cable_type;
 
 	if (charger->cable_type == SEC_BATTERY_CABLE_NONE ||

@@ -345,6 +345,15 @@ int mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 {
 	int err;
 
+#ifndef CONFIG_MMC_CRC
+	if (mrq->cmd)
+		mrq->cmd->flags &= ~MMC_RSP_CRC;
+	if (mrq->data && mrq->data->stop)
+		mrq->data->stop->flags &= ~MMC_RSP_CRC;
+	if (mrq->sbc)
+		mrq->sbc->flags &= ~MMC_RSP_CRC;
+#endif
+
 	init_completion(&mrq->cmd_completion);
 
 	mmc_retune_hold(host);

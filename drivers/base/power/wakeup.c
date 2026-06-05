@@ -15,6 +15,7 @@
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
 #include <linux/pm_wakeirq.h>
+#include <linux/boeffla_wl_blocker.h>
 #include <linux/types.h>
 #include <trace/events/power.h>
 #include <linux/memory_hotplug.h>
@@ -616,6 +617,9 @@ void __pm_stay_awake(struct wakeup_source *ws)
 	if (!ws)
 		return;
 
+	if (boeffla_wl_blocker_active(ws->name))
+		return;
+
 	spin_lock_irqsave(&ws->lock, flags);
 
 	wakeup_source_report_event(ws, false);
@@ -802,6 +806,9 @@ void pm_wakeup_ws_event(struct wakeup_source *ws, unsigned int msec, bool hard)
 	unsigned long expires;
 
 	if (!ws)
+		return;
+
+	if (boeffla_wl_blocker_active(ws->name))
 		return;
 
 	spin_lock_irqsave(&ws->lock, flags);

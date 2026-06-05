@@ -22,6 +22,10 @@
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
+#ifdef CONFIG_DYNAMIC_FSYNC
+extern bool dyn_fsync_active;
+#endif
+
 /* Interruptible sync for Samsung Mobile Device */
 /* @fs.sec -- 30cbf83784121f91517b701d9706bccd -- */
 
@@ -478,6 +482,11 @@ static int do_fsync(unsigned int fd, int datasync)
 {
 	struct fd f = fdget(fd);
 	int ret = -EBADF;
+
+#ifdef CONFIG_DYNAMIC_FSYNC
+	if (likely(dyn_fsync_active))
+		return 0;
+#endif
 
 	if (f.file) {
 		ret = vfs_fsync(f.file, datasync);
