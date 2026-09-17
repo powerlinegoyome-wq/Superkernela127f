@@ -92,37 +92,7 @@ jobs:
           echo "Cloning AnyKernel3..."
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
           
-          python3 -c '
-content = """#!/sbin/sh
-# AnyKernel3 Deployment Script
-# osm0sis @ xda-developers
-
-properties() { '\''
-kernel.string=SuperKernel A127F (KSU + ZSTD + BBR) by powerlinegoyome
-do.devicecheck=1
-do.modules=0
-do.systemless=1
-do.cleanup=1
-do.cleanuponabort=0
-device.name1=a12s
-device.name2=a12snsxx
-device.name3=a127f
-device.name4=SM-A127F
-supported.versions=11-14
-'\''; }
-
-block=/dev/block/by-name/boot;
-is_slot_device=0;
-ramdisk_compression=auto;
-patch_vbmeta_flag=auto;
-
-. tools/ak3-core.sh;
-dump_boot;
-write_boot;
-"""
-with open("AnyKernel3/anykernel.sh", "w") as f:
-    f.write(content)
-'
+          echo "IyEvc2Jpbi9zaAojIEFueUtlcm5lbDMgRGVwbG95bWVudCBTY3JpcHQKIyBvc20wc2lzIEAgeGRhLWRldmVsb3BlcnMKCnByb3BlcnRpZXMoKSB7ICcKa2VybmVsLnN0cmluZz1TdXBlcktlcm5lbCBBMTI3RiAoS1NVICsgWlNURCArIEJCUikgYnkgcG93ZXJsaW5lZ295b21lCmRvLmRldmljZWNoZWNrPTEKZG8ubW9kdWxlcz0wCmRvLnN5c3RlbWxlc3M9MQpkby5jbGVhbnVwPTEKZG8uY2xlYW51cG9uYWJvcnQ9MApkZXZpY2UubmFtZTE9YTEycwpkZXZpY2UubmFtZTI9YTEyc25zeHgKZGV2aWNlLm5hbWUzPWExMjdmCmRldmljZS5uYW1lND1TTS1BMTI3RgpzdXBwb3J0ZWQudmVyc2lvbnM9MTEtMTQKJzsgfQoKYmxvY2s9L2Rldi9ibG9jay9ieS1uYW1lL2Jvb3Q7CmlzX3Nsb3RfZGV2aWNlPTA7CnJhbWRpc2tfY29tcHJlc3Npb249YXV0bzsKcGF0Y2hfdmJtZXRhX2ZsYWc9YXV0bzsKCi4gdG9vbHMvYWszLWNvcmUuc2g7CmR1bXBfYm9vdDsKd3JpdGVfYm9vdDsK" | base64 -d > AnyKernel3/anykernel.sh
           chmod +x AnyKernel3/anykernel.sh
 
           if [ -f "arch/arm64/boot/Image" ]; then
