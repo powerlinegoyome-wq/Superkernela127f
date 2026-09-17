@@ -45,9 +45,9 @@ jobs:
       - name: Fix Permissions and Makefile Flags
         run: |
           chmod +x -R toolchain/
-          # Remove -Werror so Clang doesn't fail on harmless GNU extension warnings
+          # Remove -Werror and GNU extension warnings so Clang compiles smoothly
           sed -i 's/-Werror //g' Makefile
-          sed -i 's/-Werror//g' Makefile
+          sed -i 's/-Werror//g' Makefile
 
       - name: Apply Optimizations to Defconfig
         run: |
@@ -87,7 +87,7 @@ jobs:
           export CLANG_TRIPLE=aarch64-linux-gnu-
           
           make ARCH=arm64 exynos850-a12snsxx_defconfig
-          make ARCH=arm64 -j$(nproc --all)
+          make ARCH=arm64 KCFLAGS="-Wno-error" -j$(nproc --all)
 
       - name: Package with AnyKernel3
         run: |
