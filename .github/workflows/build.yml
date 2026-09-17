@@ -42,13 +42,13 @@ jobs:
             ln -sf ../KernelSU/kernel drivers/kernelsu
           fi
 
-      - name: Fix Permissions & Toolchain Assembler Links
+      - name: Setup Toolchain Symlinks & Permissions
         run: |
           chmod +x -R toolchain/
           GCC_BIN="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
-          ln -sf aarch64-linux-android-as "$GCC_BIN/as"
+          # Only create cross-prefixed symlinks; NEVER create plain 'as' or 'ld' to avoid breaking HOSTCC
+          rm -f "$GCC_BIN/as" "$GCC_BIN/ld"
           ln -sf aarch64-linux-android-as "$GCC_BIN/aarch64-linux-gnu-as"
-          ln -sf aarch64-linux-android-ld "$GCC_BIN/ld"
           ln -sf aarch64-linux-android-ld "$GCC_BIN/aarch64-linux-gnu-ld"
 
       - name: Apply Optimizations to Defconfig
@@ -81,7 +81,7 @@ jobs:
           export ANDROID_MAJOR_VERSION=t
           export ARCH=arm64
           
-          # Add in-tree toolchains to PATH so Clang finds cross-assembler
+          # Add in-tree toolchains to PATH
           TOOLCHAIN_GCC="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
           TOOLCHAIN_CLANG="$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin"
           export PATH="$TOOLCHAIN_CLANG:$TOOLCHAIN_GCC:$PATH"
