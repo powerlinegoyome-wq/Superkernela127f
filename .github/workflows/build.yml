@@ -42,9 +42,12 @@ jobs:
             ln -sf ../KernelSU/kernel drivers/kernelsu
           fi
 
-      - name: Fix Permissions
+      - name: Fix Permissions and Makefile Flags
         run: |
           chmod +x -R toolchain/
+          # Remove -Werror so Clang doesn't fail on harmless GNU extension warnings
+          sed -i 's/-Werror //g' Makefile
+          sed -i 's/-Werror//g' Makefile
 
       - name: Apply Optimizations to Defconfig
         run: |
@@ -75,6 +78,13 @@ jobs:
           export PLATFORM_VERSION=13
           export ANDROID_MAJOR_VERSION=t
           export ARCH=arm64
+          
+          # Add in-tree toolchains to PATH so Clang uses aarch64-linux-android-as instead of host /usr/bin/as
+          TOOLCHAIN_GCC="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
+          TOOLCHAIN_CLANG="$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin"
+          export PATH="$TOOLCHAIN_CLANG:$TOOLCHAIN_GCC:$PATH"
+          export CROSS_COMPILE=aarch64-linux-android-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
           
           make ARCH=arm64 exynos850-a12snsxx_defconfig
           make ARCH=arm64 -j$(nproc --all)
