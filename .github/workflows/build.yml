@@ -61,6 +61,7 @@ jobs:
           grep -q "CONFIG_CRYPTO_ZSTD=y" $DEFCONFIG || echo "CONFIG_CRYPTO_ZSTD=y" >> $DEFCONFIG
 
           # 2. Google BBR default TCP
+          sed -i 's/# CONFIG_DEFAULT_BBR is not set/CONFIG_DEFAULT_BBR=y/' $DEFCONFIG
           sed -i 's/CONFIG_DEFAULT_TCP_CONG="bic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' $DEFCONFIG
           sed -i 's/CONFIG_DEFAULT_TCP_CONG="cubic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' $DEFCONFIG
 
@@ -69,11 +70,6 @@ jobs:
 
           # 4. BFQ I/O Scheduler
           sed -i 's/# CONFIG_IOSCHED_BFQ is not set/CONFIG_IOSCHED_BFQ=y/' $DEFCONFIG
-
-          # 5. Samsung SEC_DEBUG Debloat (Reduce CPU jitter)
-          for opt in CONFIG_SEC_DEBUG_HIST_LOG CONFIG_SEC_DEBUG_AUTO_COMMENT CONFIG_SEC_DEBUG_RESET_REASON CONFIG_SEC_DEBUG_EXTRA_INFO CONFIG_SEC_DEBUG_HW_PARAM CONFIG_SEC_DEBUG_TSP_LOG CONFIG_SEC_DEBUG_TASK_IN_STATE_INFO CONFIG_SEC_DEBUG_PM_DEVICE_INFO CONFIG_SEC_DEBUG_LOCKUP_INFO CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO; do
-            sed -i "s/${opt}=y/# ${opt} is not set/" $DEFCONFIG
-          done
 
       - name: Compile Kernel
         run: |
@@ -96,34 +92,38 @@ jobs:
           echo "Cloning AnyKernel3..."
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
           
-          cat << 'EOF' > AnyKernel3/anykernel.sh
-          #!/sbin/sh
-          # AnyKernel3 Deployment Script
-          # osm0sis @ xda-developers
+          python3 -c '
+content = """#!/sbin/sh
+# AnyKernel3 Deployment Script
+# osm0sis @ xda-developers
 
-          properties() { '
-          kernel.string=SuperKernel A127F (KSU + ZSTD + BBR) by powerlinegoyome
-          do.devicecheck=1
-          do.modules=0
-          do.systemless=1
-          do.cleanup=1
-          do.cleanuponabort=0
-          device.name1=a12s
-          device.name2=a12snsxx
-          device.name3=a127f
-          device.name4=SM-A127F
-          supported.versions=11-14
-          '; }
+properties() { '\''
+kernel.string=SuperKernel A127F (KSU + ZSTD + BBR) by powerlinegoyome
+do.devicecheck=1
+do.modules=0
+do.systemless=1
+do.cleanup=1
+do.cleanuponabort=0
+device.name1=a12s
+device.name2=a12snsxx
+device.name3=a127f
+device.name4=SM-A127F
+supported.versions=11-14
+'\''; }
 
-          block=/dev/block/by-name/boot;
-          is_slot_device=0;
-          ramdisk_compression=auto;
-          patch_vbmeta_flag=auto;
+block=/dev/block/by-name/boot;
+is_slot_device=0;
+ramdisk_compression=auto;
+patch_vbmeta_flag=auto;
 
-          . tools/ak3-core.sh;
-          dump_boot;
-          write_boot;
-          EOF
+. tools/ak3-core.sh;
+dump_boot;
+write_boot;
+"""
+with open("AnyKernel3/anykernel.sh", "w") as f:
+    f.write(content)
+'
+          chmod +x AnyKernel3/anykernel.sh
 
           if [ -f "arch/arm64/boot/Image" ]; then
             cp arch/arm64/boot/Image AnyKernel3/Image
@@ -135,14 +135,16 @@ jobs:
           zip -r9 ../SuperKernel-A127F-v1.0-KSU-ZSTD.zip * -x .git README.md
           cd ..
 
+          mkdir -p dist
+          cp SuperKernel-A127F-v1.0-KSU-ZSTD.zip dist/
+          [ -f arch/arm64/boot/Image ] && cp arch/arm64/boot/Image dist/
+          [ -f arch/arm64/boot/Image.gz ] && cp arch/arm64/boot/Image.gz dist/
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: SuperKernel-A127F-Package
-          path: |
-            SuperKernel-A127F-v1.0-KSU-ZSTD.zip
-            arch/arm64/boot/Image
-            arch/arm64/boot/Image.gz
+          path: dist/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -154,19 +156,15 @@ jobs:
             Built automatically via GitHub Actions CI!
 
             #### Included Optimizations:
-            - **KernelSU v1.0.1** (Syscall hooks for Exynos 850)
-            - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for high RAM compression
-            - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network
-            - **Samsung SEC_DEBUG Debloat** (Eliminated CPU background jitter)
+            - **KernelSU v1.0.1** (Integrated syscall hooks for Exynos 850 root)
+            - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for ultra-efficient RAM compression
+            - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network speed and lower latency
             - **NTFS Read/Write** (`CONFIG_NTFS_RW=y`)
-            - **BFQ I/O Scheduler** for smooth storage responsiveness
+            - **BFQ I/O Scheduler** (`CONFIG_IOSCHED_BFQ=y`) for smooth storage multitasking
             - **CPU/GPU Tuning**: Physwizz Overclock & Underclock
 
             #### Installation:
             Flash `SuperKernel-A127F-v1.0-KSU-ZSTD.zip` in TWRP or OrangeFox recovery.
-          files: |
-            SuperKernel-A127F-v1.0-KSU-ZSTD.zip
-            arch/arm64/boot/Image
-            arch/arm64/boot/Image.gz
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
