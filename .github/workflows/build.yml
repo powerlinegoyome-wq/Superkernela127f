@@ -25,7 +25,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio zip unzip tar wget curl ca-certificates rsync kmod ccache libncurses5 libncurses5-dev libtinfo5 || sudo apt-get install -y libncurses6 libncurses-dev
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio zip unzip tar wget curl ca-certificates rsync kmod ccache libncurses5 libncurses5-dev libtinfo5 binutils-aarch64-linux-gnu || sudo apt-get install -y libncurses6 libncurses-dev binutils-aarch64-linux-gnu
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
@@ -42,9 +42,14 @@ jobs:
             ln -sf ../KernelSU/kernel drivers/kernelsu
           fi
 
-      - name: Fix Permissions
+      - name: Fix Permissions & Toolchain Assembler Links
         run: |
           chmod +x -R toolchain/
+          GCC_BIN="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
+          ln -sf aarch64-linux-android-as "$GCC_BIN/as"
+          ln -sf aarch64-linux-android-as "$GCC_BIN/aarch64-linux-gnu-as"
+          ln -sf aarch64-linux-android-ld "$GCC_BIN/ld"
+          ln -sf aarch64-linux-android-ld "$GCC_BIN/aarch64-linux-gnu-ld"
 
       - name: Apply Optimizations to Defconfig
         run: |
@@ -76,7 +81,7 @@ jobs:
           export ANDROID_MAJOR_VERSION=t
           export ARCH=arm64
           
-          # Add in-tree toolchains to PATH so Clang finds aarch64-linux-android-as and elfedit
+          # Add in-tree toolchains to PATH so Clang finds cross-assembler
           TOOLCHAIN_GCC="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
           TOOLCHAIN_CLANG="$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin"
           export PATH="$TOOLCHAIN_CLANG:$TOOLCHAIN_GCC:$PATH"
