@@ -1,0 +1,160 @@
+name: Build SuperKernel A127F
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+
+permissions:
+  contents: write
+
+jobs:
+  build-kernel:
+    name: Compile Kernel & Release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev cpio zip unzip tar wget curl ca-certificates rsync kmod ccache libncurses5 libncurses5-dev libtinfo5 || sudo apt-get install -y libncurses6 libncurses-dev
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
+
+      - name: Setup KernelSU
+        run: |
+          echo "Setting up KernelSU v1.0.1..."
+          if [ -d "KernelSU" ]; then
+            rm -rf KernelSU
+          fi
+          git clone -b v1.0.1 --depth=1 https://github.com/tiann/KernelSU.git KernelSU
+          
+          # Ensure drivers/kernelsu symlink
+          if [ ! -e "drivers/kernelsu" ]; then
+            ln -sf ../KernelSU/kernel drivers/kernelsu
+          fi
+
+      - name: Fix Permissions
+        run: |
+          chmod +x -R toolchain/
+
+      - name: Apply Optimizations to Defconfig
+        run: |
+          DEFCONFIG="arch/arm64/configs/exynos850-a12snsxx_defconfig"
+          echo "Applying optimizations to $DEFCONFIG..."
+
+          # 1. ZSTD ZRAM support
+          sed -i 's/# CONFIG_CRYPTO_ZSTD is not set/CONFIG_CRYPTO_ZSTD=y/' $DEFCONFIG
+          grep -q "CONFIG_CRYPTO_ZSTD=y" $DEFCONFIG || echo "CONFIG_CRYPTO_ZSTD=y" >> $DEFCONFIG
+
+          # 2. Google BBR default TCP
+          sed -i 's/CONFIG_DEFAULT_TCP_CONG="bic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' $DEFCONFIG
+          sed -i 's/CONFIG_DEFAULT_TCP_CONG="cubic"/CONFIG_DEFAULT_TCP_CONG="bbr"/' $DEFCONFIG
+
+          # 3. NTFS Read/Write
+          sed -i 's/# CONFIG_NTFS_RW is not set/CONFIG_NTFS_RW=y/' $DEFCONFIG
+
+          # 4. BFQ I/O Scheduler
+          sed -i 's/# CONFIG_IOSCHED_BFQ is not set/CONFIG_IOSCHED_BFQ=y/' $DEFCONFIG
+
+          # 5. Samsung SEC_DEBUG Debloat (Reduce CPU jitter)
+          for opt in CONFIG_SEC_DEBUG_HIST_LOG CONFIG_SEC_DEBUG_AUTO_COMMENT CONFIG_SEC_DEBUG_RESET_REASON CONFIG_SEC_DEBUG_EXTRA_INFO CONFIG_SEC_DEBUG_HW_PARAM CONFIG_SEC_DEBUG_TSP_LOG CONFIG_SEC_DEBUG_TASK_IN_STATE_INFO CONFIG_SEC_DEBUG_PM_DEVICE_INFO CONFIG_SEC_DEBUG_LOCKUP_INFO CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO; do
+            sed -i "s/${opt}=y/# ${opt} is not set/" $DEFCONFIG
+          done
+
+      - name: Compile Kernel
+        run: |
+          export PLATFORM_VERSION=13
+          export ANDROID_MAJOR_VERSION=t
+          export ARCH=arm64
+          
+          make ARCH=arm64 exynos850-a12snsxx_defconfig
+          make ARCH=arm64 -j$(nproc --all)
+
+      - name: Package with AnyKernel3
+        run: |
+          echo "Cloning AnyKernel3..."
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          
+          cat << 'EOF' > AnyKernel3/anykernel.sh
+          #!/sbin/sh
+          # AnyKernel3 Deployment Script
+          # osm0sis @ xda-developers
+
+          properties() { '
+          kernel.string=SuperKernel A127F (KSU + ZSTD + BBR) by powerlinegoyome
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=a12s
+          device.name2=a12snsxx
+          device.name3=a127f
+          device.name4=SM-A127F
+          supported.versions=11-14
+          '; }
+
+          block=/dev/block/by-name/boot;
+          is_slot_device=0;
+          ramdisk_compression=auto;
+          patch_vbmeta_flag=auto;
+
+          . tools/ak3-core.sh;
+          dump_boot;
+          write_boot;
+          EOF
+
+          if [ -f "arch/arm64/boot/Image" ]; then
+            cp arch/arm64/boot/Image AnyKernel3/Image
+          elif [ -f "arch/arm64/boot/Image.gz" ]; then
+            cp arch/arm64/boot/Image.gz AnyKernel3/Image.gz
+          fi
+
+          cd AnyKernel3
+          zip -r9 ../SuperKernel-A127F-v1.0-KSU-ZSTD.zip * -x .git README.md
+          cd ..
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperKernel-A127F-Package
+          path: |
+            SuperKernel-A127F-v1.0-KSU-ZSTD.zip
+            arch/arm64/boot/Image
+            arch/arm64/boot/Image.gz
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0-ksu-zstd
+          name: "SuperKernel A127F v1.0 (KernelSU + ZSTD + BBR)"
+          body: |
+            ### SuperKernel A127F v1.0 (Samsung Galaxy A12s / SM-A127F)
+            Built automatically via GitHub Actions CI!
+
+            #### Included Optimizations:
+            - **KernelSU v1.0.1** (Syscall hooks for Exynos 850)
+            - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for high RAM compression
+            - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network
+            - **Samsung SEC_DEBUG Debloat** (Eliminated CPU background jitter)
+            - **NTFS Read/Write** (`CONFIG_NTFS_RW=y`)
+            - **BFQ I/O Scheduler** for smooth storage responsiveness
+            - **CPU/GPU Tuning**: Physwizz Overclock & Underclock
+
+            #### Installation:
+            Flash `SuperKernel-A127F-v1.0-KSU-ZSTD.zip` in TWRP or OrangeFox recovery.
+          files: |
+            SuperKernel-A127F-v1.0-KSU-ZSTD.zip
+            arch/arm64/boot/Image
+            arch/arm64/boot/Image.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
