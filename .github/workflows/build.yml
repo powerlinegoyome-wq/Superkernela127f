@@ -104,12 +104,15 @@ jobs:
 
       - name: Package with AnyKernel3
         run: |
-          echo "Cloning AnyKernel3..."
-          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          echo "Setting up proven AnyKernel3 from Physwizz A127F..."
+          wget -q https://github.com/physwizz/A127f-T-sc/releases/download/Rksu2/physwizz_A127f-T-sc-rksu-v2-kernel.zip -O ak3_base.zip
+          unzip -q ak3_base.zip -d AnyKernel3
+          rm -f AnyKernel3/Image AnyKernel3/Image.gz
           
-          echo "IyEvc2Jpbi9zaAojIEFueUtlcm5lbDMgRGVwbG95bWVudCBTY3JpcHQKIyBvc20wc2lzIEAgeGRhLWRldmVsb3BlcnMKCnByb3BlcnRpZXMoKSB7ICcKa2VybmVsLnN0cmluZz1TdXBlcktlcm5lbCBBMTI3RiAoS1NVICsgV0cgKyBaU1REICsgQkJSKSBieSBwb3dlcmxpbmVnb3lvbWUKZG8uZGV2aWNlY2hlY2s9MQpkby5tb2R1bGVzPTAKZG8uc3lzdGVtbGVzcz0xCmRvLmNsZWFudXA9MQpkby5jbGVhbnVwb25hYm9ydD0wCmRldmljZS5uYW1lMT1hMTJzCmRldmljZS5uYW1lMj1hMTJzbnN4eApkZXZpY2UubmFtZTM9YTEyN2YKZGV2aWNlLm5hbWU0PVNNLUExMjdGCnN1cHBvcnRlZC52ZXJzaW9ucz0xMS0xNAonOyB9CgpibG9jaz0vZGV2L2Jsb2NrL2J5LW5hbWUvYm9vdDsKaXNfc2xvdF9kZXZpY2U9MDsKcmFtZGlza19jb21wcmVzc2lvbj1hdXRvOwpwYXRjaF92Ym1ldGFfZmxhZz1hdXRvOwoKLiB0b29scy9hazMtY29yZS5zaDsKZHVtcF9ib290Owp3cml0ZV9ib290Owo=" | base64 -d > AnyKernel3/anykernel.sh
-          chmod +x AnyKernel3/anykernel.sh
-
+          # Replace kernel.string in anykernel.sh
+          sed -i 's/kernel.string=.*/kernel.string=SuperKernel A127F (KSU + WG + ZSTD + BBR) by powerlinegoyome/' AnyKernel3/anykernel.sh
+          
+          # Copy compiled Image
           if [ -f "arch/arm64/boot/Image" ]; then
             cp arch/arm64/boot/Image AnyKernel3/Image
           elif [ -f "arch/arm64/boot/Image.gz" ]; then
@@ -117,28 +120,30 @@ jobs:
           fi
 
           cd AnyKernel3
-          zip -r9 ../SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip * -x .git README.md
+          zip -r9 ../SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip * -x .git README.md
           cd ..
 
           mkdir -p dist
-          cp SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip dist/
+          cp SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip dist/
           [ -f arch/arm64/boot/Image ] && cp arch/arm64/boot/Image dist/
           [ -f arch/arm64/boot/Image.gz ] && cp arch/arm64/boot/Image.gz dist/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SuperKernel-A127F-v1.1-Package
+          name: SuperKernel-A127F-v1.2-Package
           path: dist/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1-ksu-wg-zstd
-          name: "SuperKernel A127F v1.1 (KernelSU + WireGuard + ZSTD + BBR)"
+          tag_name: v1.2-ksu-wg-zstd
+          name: "SuperKernel A127F v1.2 (KernelSU + WireGuard + ZSTD + BBR)"
           body: |
-            ### SuperKernel A127F v1.1 (Samsung Galaxy A12s / SM-A127F)
+            ### SuperKernel A127F v1.2 (Samsung Galaxy A12s / SM-A127F)
             Built automatically via GitHub Actions CI!
+            
+            **Fix in v1.2:** Packaged with Physwizz proven Samsung Exynos 850 AnyKernel3 base (fixing partition detection in TWRP and including Samsung deepsleep patches).
 
             #### Included Optimizations:
             - **WireGuard In-Kernel VPN** (`CONFIG_WIREGUARD=y`) for ultra-fast and battery-friendly VPN tunneling
@@ -148,9 +153,10 @@ jobs:
             - **NTFS Read/Write** (`CONFIG_NTFS_RW=y`)
             - **BFQ I/O Scheduler** (`CONFIG_IOSCHED_BFQ=y`) for smooth storage multitasking
             - **CPU/GPU Tuning**: Physwizz Overclock & Underclock
+            - **Samsung Deepsleep Fix**: Integrated Exynos 850 specific sleep & secure storage patches
 
             #### Installation:
-            Flash `SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
+            Flash `SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
