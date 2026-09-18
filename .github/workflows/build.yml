@@ -31,6 +31,10 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 2>/dev/null || true
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 2>/dev/null || true
 
+      - name: Fix DTC Build for GCC 10+
+        run: |
+          sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.l || true
+
       - name: Setup KernelSU
         run: |
           echo "Setting up KernelSU v1.0.1..."
@@ -100,7 +104,7 @@ jobs:
           export CLANG_TRIPLE=aarch64-linux-gnu-
           
           make ARCH=arm64 exynos850-a12snsxx_defconfig
-          make ARCH=arm64 KCFLAGS="-Wno-error -Wno-gnu-variable-sized-type-not-at-end" -j$(nproc --all)
+          make ARCH=arm64 HOSTCFLAGS="-fcommon" KCFLAGS="-Wno-error -Wno-gnu-variable-sized-type-not-at-end" -j$(nproc --all)
 
       - name: Package with AnyKernel3
         run: |
