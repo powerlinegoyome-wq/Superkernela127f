@@ -37,9 +37,14 @@ jobs:
 
       - name: Setup KernelSU
         run: |
-          echo "Setting up KernelSU v1.0.1..."
+          echo "Setting up KernelSU at Physwizz tested commit..."
           rm -rf KernelSU drivers/kernelsu
-          git clone -b v1.0.1 --depth=1 https://github.com/tiann/KernelSU.git KernelSU
+          git clone https://github.com/tiann/KernelSU.git KernelSU
+          cd KernelSU
+          git checkout b766b98513b5a7eb33bc1c4a76b5702bf1288f07
+          cd ..
+          # Prevent Linux 4.19 syntax error on MODULE_IMPORT_NS
+          sed -i 's/^MODULE_IMPORT_NS/\/\/ MODULE_IMPORT_NS/' KernelSU/kernel/ksu.c || true
           ln -sf ../KernelSU/kernel drivers/kernelsu
 
       - name: Setup WireGuard
