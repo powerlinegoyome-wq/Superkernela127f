@@ -42,6 +42,17 @@ jobs:
             ln -sf ../KernelSU/kernel drivers/kernelsu
           fi
 
+      - name: Setup WireGuard
+        run: |
+          echo "Setting up WireGuard..."
+          if [ -d "wireguard-linux-compat" ]; then
+            rm -rf wireguard-linux-compat
+          fi
+          git clone --depth=1 https://github.com/WireGuard/wireguard-linux-compat.git wireguard-linux-compat
+          bash wireguard-linux-compat/kernel-tree-scripts/jury-rig.sh .
+          rm -f net/wireguard
+          cp -r wireguard-linux-compat/src net/wireguard
+
       - name: Setup Toolchain Symlinks & Permissions
         run: |
           chmod +x -R toolchain/
@@ -71,6 +82,10 @@ jobs:
           # 4. BFQ I/O Scheduler
           sed -i 's/# CONFIG_IOSCHED_BFQ is not set/CONFIG_IOSCHED_BFQ=y/' $DEFCONFIG
 
+          # 5. WireGuard Support
+          sed -i 's/# CONFIG_WIREGUARD is not set/CONFIG_WIREGUARD=y/' $DEFCONFIG
+          grep -q "CONFIG_WIREGUARD=y" $DEFCONFIG || echo "CONFIG_WIREGUARD=y" >> $DEFCONFIG
+
       - name: Compile Kernel
         run: |
           export PLATFORM_VERSION=13
@@ -92,7 +107,7 @@ jobs:
           echo "Cloning AnyKernel3..."
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
           
-          echo "IyEvc2Jpbi9zaAojIEFueUtlcm5lbDMgRGVwbG95bWVudCBTY3JpcHQKIyBvc20wc2lzIEAgeGRhLWRldmVsb3BlcnMKCnByb3BlcnRpZXMoKSB7ICcKa2VybmVsLnN0cmluZz1TdXBlcktlcm5lbCBBMTI3RiAoS1NVICsgWlNURCArIEJCUikgYnkgcG93ZXJsaW5lZ295b21lCmRvLmRldmljZWNoZWNrPTEKZG8ubW9kdWxlcz0wCmRvLnN5c3RlbWxlc3M9MQpkby5jbGVhbnVwPTEKZG8uY2xlYW51cG9uYWJvcnQ9MApkZXZpY2UubmFtZTE9YTEycwpkZXZpY2UubmFtZTI9YTEyc25zeHgKZGV2aWNlLm5hbWUzPWExMjdmCmRldmljZS5uYW1lND1TTS1BMTI3RgpzdXBwb3J0ZWQudmVyc2lvbnM9MTEtMTQKJzsgfQoKYmxvY2s9L2Rldi9ibG9jay9ieS1uYW1lL2Jvb3Q7CmlzX3Nsb3RfZGV2aWNlPTA7CnJhbWRpc2tfY29tcHJlc3Npb249YXV0bzsKcGF0Y2hfdmJtZXRhX2ZsYWc9YXV0bzsKCi4gdG9vbHMvYWszLWNvcmUuc2g7CmR1bXBfYm9vdDsKd3JpdGVfYm9vdDsK" | base64 -d > AnyKernel3/anykernel.sh
+          echo "IyEvc2Jpbi9zaAojIEFueUtlcm5lbDMgRGVwbG95bWVudCBTY3JpcHQKIyBvc20wc2lzIEAgeGRhLWRldmVsb3BlcnMKCnByb3BlcnRpZXMoKSB7ICcKa2VybmVsLnN0cmluZz1TdXBlcktlcm5lbCBBMTI3RiAoS1NVICsgV0cgKyBaU1REICsgQkJSKSBieSBwb3dlcmxpbmVnb3lvbWUKZG8uZGV2aWNlY2hlY2s9MQpkby5tb2R1bGVzPTAKZG8uc3lzdGVtbGVzcz0xCmRvLmNsZWFudXA9MQpkby5jbGVhbnVwb25hYm9ydD0wCmRldmljZS5uYW1lMT1hMTJzCmRldmljZS5uYW1lMj1hMTJzbnN4eApkZXZpY2UubmFtZTM9YTEyN2YKZGV2aWNlLm5hbWU0PVNNLUExMjdGCnN1cHBvcnRlZC52ZXJzaW9ucz0xMS0xNAonOyB9CgpibG9jaz0vZGV2L2Jsb2NrL2J5LW5hbWUvYm9vdDsKaXNfc2xvdF9kZXZpY2U9MDsKcmFtZGlza19jb21wcmVzc2lvbj1hdXRvOwpwYXRjaF92Ym1ldGFfZmxhZz1hdXRvOwoKLiB0b29scy9hazMtY29yZS5zaDsKZHVtcF9ib290Owp3cml0ZV9ib290Owo=" | base64 -d > AnyKernel3/anykernel.sh
           chmod +x AnyKernel3/anykernel.sh
 
           if [ -f "arch/arm64/boot/Image" ]; then
@@ -102,30 +117,31 @@ jobs:
           fi
 
           cd AnyKernel3
-          zip -r9 ../SuperKernel-A127F-v1.0-KSU-ZSTD.zip * -x .git README.md
+          zip -r9 ../SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip * -x .git README.md
           cd ..
 
           mkdir -p dist
-          cp SuperKernel-A127F-v1.0-KSU-ZSTD.zip dist/
+          cp SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip dist/
           [ -f arch/arm64/boot/Image ] && cp arch/arm64/boot/Image dist/
           [ -f arch/arm64/boot/Image.gz ] && cp arch/arm64/boot/Image.gz dist/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SuperKernel-A127F-Package
+          name: SuperKernel-A127F-v1.1-Package
           path: dist/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0-ksu-zstd
-          name: "SuperKernel A127F v1.0 (KernelSU + ZSTD + BBR)"
+          tag_name: v1.1-ksu-wg-zstd
+          name: "SuperKernel A127F v1.1 (KernelSU + WireGuard + ZSTD + BBR)"
           body: |
-            ### SuperKernel A127F v1.0 (Samsung Galaxy A12s / SM-A127F)
+            ### SuperKernel A127F v1.1 (Samsung Galaxy A12s / SM-A127F)
             Built automatically via GitHub Actions CI!
 
             #### Included Optimizations:
+            - **WireGuard In-Kernel VPN** (`CONFIG_WIREGUARD=y`) for ultra-fast and battery-friendly VPN tunneling
             - **KernelSU v1.0.1** (Integrated syscall hooks for Exynos 850 root)
             - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for ultra-efficient RAM compression
             - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network speed and lower latency
@@ -134,7 +150,7 @@ jobs:
             - **CPU/GPU Tuning**: Physwizz Overclock & Underclock
 
             #### Installation:
-            Flash `SuperKernel-A127F-v1.0-KSU-ZSTD.zip` in TWRP or OrangeFox recovery.
+            Flash `SuperKernel-A127F-v1.1-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
