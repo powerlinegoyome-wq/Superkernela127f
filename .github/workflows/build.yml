@@ -35,6 +35,55 @@ jobs:
         run: |
           sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.l || true
 
+      - name: Patch Kernel Defaults (Permanent ZSTD & BFQ Lock)
+        run: |
+          echo "Applying ZRAM ZSTD default and init.rc override protection..."
+          python3 -c '
+          with open("drivers/block/zram/zram_drv.c", "r") as f:
+              c = f.read()
+          c = c.replace("static const char *default_compressor = \"lz4\";", "static const char *default_compressor = \"zstd\";")
+          old_zcomp = "if (!zcomp_available_algorithm(compressor))"
+          new_zcomp = "if (sysfs_streq(compressor, \"lz4\") || !strcmp(compressor, \"lz4\"))\n\t\treturn len;\n\n\tif (!zcomp_available_algorithm(compressor))"
+          assert old_zcomp in c, "old_zcomp not found"
+          c = c.replace(old_zcomp, new_zcomp, 1)
+          with open("drivers/block/zram/zram_drv.c", "w") as f:
+              f.write(c)
+          print("ZRAM ZSTD patch applied!")
+          '
+
+          echo "Applying BFQ default and init.rc override protection..."
+          python3 -c '
+          with open("block/elevator.c", "r") as f:
+              c = f.read()
+          old_mq = "e = elevator_get(q, \"mq-deadline\", false);"
+          new_mq = "#ifdef CONFIG_IOSCHED_BFQ\n\te = elevator_get(q, \"bfq\", false);\n\tif (!e)\n#endif\n\te = elevator_get(q, \"mq-deadline\", false);"
+          assert old_mq in c, "old_mq not found"
+          c = c.replace(old_mq, new_mq, 1)
+
+          old_store = "if (!(q->mq_ops || q->request_fn) || !elv_support_iosched(q))\n\t\treturn count;\n\n\tret = __elevator_change(q, name);"
+          new_store = "if (!(q->mq_ops || q->request_fn) || !elv_support_iosched(q))\n\t\treturn count;\n\n#ifdef CONFIG_IOSCHED_BFQ\n\tif (!strncasecmp(name, \"mq-deadline\", 11) || !strncasecmp(name, \"deadline\", 8))\n\t\treturn count;\n#endif\n\n\tret = __elevator_change(q, name);"
+          assert old_store in c, "old_store not found"
+          c = c.replace(old_store, new_store, 1)
+          with open("block/elevator.c", "w") as f:
+              f.write(c)
+          print("Elevator BFQ patch applied!")
+          '
+
+          echo "Patching block/Kconfig.iosched for default BFQ..."
+          python3 -c '
+          with open("block/Kconfig.iosched", "r") as f:
+              c = f.read()
+          c = c.replace("default DEFAULT_CFQ", "default DEFAULT_BFQ")
+          c = c.replace("default \"noop\" if DEFAULT_NOOP", "default \"bfq\" if DEFAULT_BFQ\n\tdefault \"noop\" if DEFAULT_NOOP")
+          c = c.replace("config DEFAULT_NOOP\n\t\tbool \"No-op\"", "config DEFAULT_BFQ\n\t\tbool \"BFQ\" if IOSCHED_BFQ=y\n\n\tconfig DEFAULT_NOOP\n\t\tbool \"No-op\"")
+          with open("block/Kconfig.iosched", "w") as f:
+              f.write(c)
+          print("Kconfig.iosched BFQ patch applied!")
+          '
+
+          echo "=== VERIFYING GIT DIFF ==="
+          git diff drivers/block/zram/zram_drv.c block/elevator.c block/Kconfig.iosched
+
       - name: Setup KernelSU
         run: |
           echo "Setting up KernelSU at Physwizz tested commit..."
@@ -84,8 +133,11 @@ jobs:
           # 3. NTFS Read/Write
           sed -i 's/# CONFIG_NTFS_RW is not set/CONFIG_NTFS_RW=y/' $DEFCONFIG
 
-          # 4. BFQ I/O Scheduler
+          # 4. BFQ I/O Scheduler & Default
           sed -i 's/# CONFIG_IOSCHED_BFQ is not set/CONFIG_IOSCHED_BFQ=y/' $DEFCONFIG
+          grep -q "CONFIG_IOSCHED_BFQ=y" $DEFCONFIG || echo "CONFIG_IOSCHED_BFQ=y" >> $DEFCONFIG
+          grep -q "CONFIG_DEFAULT_BFQ=y" $DEFCONFIG || echo "CONFIG_DEFAULT_BFQ=y" >> $DEFCONFIG
+          grep -q 'CONFIG_DEFAULT_IOSCHED="bfq"' $DEFCONFIG || echo 'CONFIG_DEFAULT_IOSCHED="bfq"' >> $DEFCONFIG
 
           # 5. WireGuard Support
           sed -i 's/# CONFIG_WIREGUARD is not set/CONFIG_WIREGUARD=y/' $DEFCONFIG
@@ -119,7 +171,7 @@ jobs:
           rm -f AnyKernel3/Image AnyKernel3/Image.gz
           
           # Replace kernel.string in anykernel.sh
-          sed -i 's/kernel.string=.*/kernel.string=SuperKernel A127F (KSU + WG + ZSTD + BBR) by powerlinegoyome/' AnyKernel3/anykernel.sh
+          sed -i 's/kernel.string=.*/kernel.string=SuperKernel A127F (KSU + WG + ZSTD-Lock + BFQ-Lock) by powerlinegoyome/' AnyKernel3/anykernel.sh
           
           # Copy compiled Image
           if [ -f "arch/arm64/boot/Image" ]; then
@@ -129,43 +181,39 @@ jobs:
           fi
 
           cd AnyKernel3
-          zip -r9 ../SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip * -x .git README.md
+          zip -r9 ../SuperKernel-A127F-v1.4-KSU-WG-ZSTD.zip * -x .git README.md
           cd ..
 
           mkdir -p dist
-          cp SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip dist/
+          cp SuperKernel-A127F-v1.4-KSU-WG-ZSTD.zip dist/
           [ -f arch/arm64/boot/Image ] && cp arch/arm64/boot/Image dist/
           [ -f arch/arm64/boot/Image.gz ] && cp arch/arm64/boot/Image.gz dist/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SuperKernel-A127F-v1.3-Package
+          name: SuperKernel-A127F-v1.4-Package
           path: dist/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.3-ksu-wg-zstd
-          name: "SuperKernel A127F v1.3 (KernelSU Syscall Hooks + WireGuard + ZSTD + BBR)"
+          tag_name: v1.4-ksu-wg-zstd-bfq
+          name: "SuperKernel A127F v1.4 (Permanent ZSTD & BFQ Lock + KSU + WireGuard)"
           body: |
-            ### SuperKernel A127F v1.3 (Samsung Galaxy A12s / SM-A127F)
+            ### SuperKernel A127F v1.4 (Samsung Galaxy A12s / SM-A127F)
             Built automatically via GitHub Actions CI!
             
-            **Major Fix in v1.3:** Built from Physwizz `ksu-1.0.1` branch containing the active manual syscall hooks (`fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`) required for KernelSU on Exynos 850 non-GKI!
-
-            #### Included Optimizations:
-            - **KernelSU v1.0.1 Active Root** (Full non-GKI syscall hook integration)
-            - **WireGuard In-Kernel VPN** (`CONFIG_WIREGUARD=y`) for ultra-fast and battery-friendly VPN tunneling
-            - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for ultra-efficient RAM compression
-            - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network speed and lower latency
-            - **NTFS Read/Write** (`CONFIG_NTFS_RW=y`)
-            - **BFQ I/O Scheduler** (`CONFIG_IOSCHED_BFQ=y`) for smooth storage multitasking
-            - **CPU/GPU Tuning**: Physwizz Overclock & Underclock
-            - **Samsung Deepsleep Fix**: Integrated Exynos 850 specific sleep & secure storage patches
+            **Permanent Defaults in v1.4:**
+            - **ZRAM ZSTD Lock**: `zram_drv.c` default compressor set to `zstd`. Android `init.rc` attempts to overwrite with `lz4` are safely ignored by sysfs.
+            - **BFQ I/O Lock**: `block/elevator.c` BLK-MQ default scheduler set to `bfq`. Android `init.rc` attempts to overwrite with `mq-deadline` are safely ignored.
+            - **KernelSU v1.0.1 Active Root**: Live syscall hooks in `fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`.
+            - **WireGuard In-Kernel VPN**: `CONFIG_WIREGUARD=y` for battery-friendly, zero-overhead VPN.
+            - **Google BBR TCP**: Default TCP congestion control.
+            - **NTFS Read/Write**: `CONFIG_NTFS_RW=y`.
 
             #### Installation:
-            Flash `SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
+            Flash `SuperKernel-A127F-v1.4-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
