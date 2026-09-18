@@ -20,6 +20,8 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
+          repository: physwizz/A127f-T-sc
+          ref: ksu-1.0.1
           fetch-depth: 1
 
       - name: Install Build Dependencies
@@ -32,15 +34,9 @@ jobs:
       - name: Setup KernelSU
         run: |
           echo "Setting up KernelSU v1.0.1..."
-          if [ -d "KernelSU" ]; then
-            rm -rf KernelSU
-          fi
+          rm -rf KernelSU drivers/kernelsu
           git clone -b v1.0.1 --depth=1 https://github.com/tiann/KernelSU.git KernelSU
-          
-          # Ensure drivers/kernelsu symlink
-          if [ ! -e "drivers/kernelsu" ]; then
-            ln -sf ../KernelSU/kernel drivers/kernelsu
-          fi
+          ln -sf ../KernelSU/kernel drivers/kernelsu
 
       - name: Setup WireGuard
         run: |
@@ -86,6 +82,10 @@ jobs:
           sed -i 's/# CONFIG_WIREGUARD is not set/CONFIG_WIREGUARD=y/' $DEFCONFIG
           grep -q "CONFIG_WIREGUARD=y" $DEFCONFIG || echo "CONFIG_WIREGUARD=y" >> $DEFCONFIG
 
+          # 6. KernelSU Support
+          sed -i 's/# CONFIG_KSU is not set/CONFIG_KSU=y/' $DEFCONFIG
+          grep -q "CONFIG_KSU=y" $DEFCONFIG || echo "CONFIG_KSU=y" >> $DEFCONFIG
+
       - name: Compile Kernel
         run: |
           export PLATFORM_VERSION=13
@@ -120,34 +120,34 @@ jobs:
           fi
 
           cd AnyKernel3
-          zip -r9 ../SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip * -x .git README.md
+          zip -r9 ../SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip * -x .git README.md
           cd ..
 
           mkdir -p dist
-          cp SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip dist/
+          cp SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip dist/
           [ -f arch/arm64/boot/Image ] && cp arch/arm64/boot/Image dist/
           [ -f arch/arm64/boot/Image.gz ] && cp arch/arm64/boot/Image.gz dist/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SuperKernel-A127F-v1.2-Package
+          name: SuperKernel-A127F-v1.3-Package
           path: dist/*
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2-ksu-wg-zstd
-          name: "SuperKernel A127F v1.2 (KernelSU + WireGuard + ZSTD + BBR)"
+          tag_name: v1.3-ksu-wg-zstd
+          name: "SuperKernel A127F v1.3 (KernelSU Syscall Hooks + WireGuard + ZSTD + BBR)"
           body: |
-            ### SuperKernel A127F v1.2 (Samsung Galaxy A12s / SM-A127F)
+            ### SuperKernel A127F v1.3 (Samsung Galaxy A12s / SM-A127F)
             Built automatically via GitHub Actions CI!
             
-            **Fix in v1.2:** Packaged with Physwizz proven Samsung Exynos 850 AnyKernel3 base (fixing partition detection in TWRP and including Samsung deepsleep patches).
+            **Major Fix in v1.3:** Built from Physwizz `ksu-1.0.1` branch containing the active manual syscall hooks (`fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`) required for KernelSU on Exynos 850 non-GKI!
 
             #### Included Optimizations:
+            - **KernelSU v1.0.1 Active Root** (Full non-GKI syscall hook integration)
             - **WireGuard In-Kernel VPN** (`CONFIG_WIREGUARD=y`) for ultra-fast and battery-friendly VPN tunneling
-            - **KernelSU v1.0.1** (Integrated syscall hooks for Exynos 850 root)
             - **ZSTD ZRAM Support** (`CONFIG_CRYPTO_ZSTD=y`) for ultra-efficient RAM compression
             - **Google BBR TCP** (`CONFIG_DEFAULT_TCP_CONG="bbr"`) for faster network speed and lower latency
             - **NTFS Read/Write** (`CONFIG_NTFS_RW=y`)
@@ -156,7 +156,7 @@ jobs:
             - **Samsung Deepsleep Fix**: Integrated Exynos 850 specific sleep & secure storage patches
 
             #### Installation:
-            Flash `SuperKernel-A127F-v1.2-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
+            Flash `SuperKernel-A127F-v1.3-KSU-WG-ZSTD.zip` in TWRP or OrangeFox recovery.
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
